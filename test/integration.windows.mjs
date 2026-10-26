@@ -141,7 +141,8 @@ try {
   GetWindowRect(hwnd, rectWhileMin);
   const pMin = readPlacement(b1, hwnd);
   const gMin = rectToGeometry(pMin.rcNormalPosition);
-  const rectGarbage = rectWhileMin.left <= -30000 || rectWhileMin.right - rectWhileMin.left <= 0;
+  // Minimized coordinates are DPI-virtualized (e.g. -25600 at 125% scaling).
+  const rectGarbage = !isValidGeometry(rectToGeometry(rectWhileMin));
   check("最小化时 GetWindowRect 返回垃圾值（说明不能用它）", rectGarbage,
     `GetWindowRect=${rectWhileMin.right - rectWhileMin.left}x${rectWhileMin.bottom - rectWhileMin.top} @ (${rectWhileMin.left},${rectWhileMin.top})`);
   check("最小化时 rcNormalPosition 仍是用户设定的几何",
@@ -158,6 +159,11 @@ try {
   check("最大化时 rcNormalPosition 保留用户尺寸",
     gMax.x === g0.x && gMax.y === g0.y && gMax.width === g0.width && gMax.height === g0.height,
     `${gMax.width}x${gMax.height} @ (${gMax.x},${gMax.y})`);
+
+  ShowWindow(hwnd, 6);
+  await sleep(400);
+  const maximizedThenMinimized = readPlacement(b1, hwnd);
+  check("最大化后最小化仍保留还原最大化标志", Boolean(maximizedThenMinimized.flags & 2));
 
   section("7. 还原：尺寸 / 位置 / 最大化状态");
   writePlacement(b1, hwnd, geometryToRect(g0), SW_NORMAL);

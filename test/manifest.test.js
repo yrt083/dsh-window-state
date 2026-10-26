@@ -74,6 +74,7 @@ ok("存在全部测试入口", () => {
   for (const f of [
     "test/manifest.test.js",
     "test/geometry.test.js",
+    "test/lifecycle.test.js",
     "test/integration.windows.mjs",
     "test/e2e.host.mjs",
     "test/dispose.host.mjs",
@@ -82,10 +83,11 @@ ok("存在全部测试入口", () => {
     assert.ok(existsSync(join(ROOT, f)), `${f} 缺失`);
   }
 });
-ok("scripts.test 覆盖全部六套测试", () => {
+ok("scripts.test 覆盖全部七套测试", () => {
   for (const f of [
     "manifest.test.js",
     "geometry.test.js",
+    "lifecycle.test.js",
     "integration.windows.mjs",
     "e2e.host.mjs",
     "dispose.host.mjs",

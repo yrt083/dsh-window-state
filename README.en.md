@@ -37,9 +37,11 @@ Nothing to configure.
 
 - **First run**: keeps the current window and starts recording.
 - **After that**: size, position and maximized state are recorded whenever they change (checked every 2 seconds).
-- **Next launch**: the last geometry is restored.
+- **Next launch**: the last geometry is restored and verified across polls. Failed attempts and startup resets are retried for up to 10 seconds; recording starts only after the restored state stays stable for 4 seconds.
 
-The final geometry is also written when DSH exits, so "adjust and quit" is captured accurately.
+After startup verification, the final geometry is also written when DSH exits normally, so "adjust and quit" is captured accurately. You do not need to close DSH manually before shutting down Windows: periodic saves survive even when the final cleanup cannot run. An adjustment made within the last 2 seconds can still be lost.
+
+State updates are flushed to a temporary file before replacing the previous record. A failed restore or an interrupted temporary-file write does not overwrite the last complete record with startup defaults. If restoration cannot be verified within 10 seconds, the plugin logs a warning and stops recording that window to preserve the previous state. A replacement main window is restored from the latest successfully saved state.
 
 To reset, delete the state file:
 
@@ -63,7 +65,7 @@ Remove-Item "$env:USERPROFILE\.dsh\window-state.json"
 }
 ```
 
-A corrupt file, missing required fields, or a file written by a newer schema version is treated as "no record": the plugin keeps the current window rather than applying questionable data.
+A corrupt file or missing required fields is treated as "no record": the plugin keeps the current window rather than applying questionable data. A file written by a newer schema version is neither applied nor overwritten.
 
 ## Tuning
 
@@ -73,6 +75,8 @@ At the top of `lib/index.js`:
 |---|---|---|
 | `POLL_MS` | `2000` | Check interval in milliseconds |
 | `WAIT_MS` | `90000` | How long to wait for the main window |
+| `RESTORE_SETTLE_MS` | `4000` | How long the restored state must remain stable before recording |
+| `RESTORE_WAIT_MS` | `10000` | Maximum restoration retry time per window |
 
 `MIN_W` / `MIN_H` in `lib/geometry.js` set how large a window must be to count as the main window.
 
@@ -85,6 +89,7 @@ This guard is a requirement, not a nicety: an earlier version fell back to "the 
 ## Limitations
 
 - **The window briefly appears at the default size.** The plugin can only adjust it once it exists; the creation-time default is hard-coded in the official `app.asar`.
+- During startup verification, a resize can trigger another restore. Wait for the window to settle before adjusting it.
 - **Fullscreen is not tracked**, only normal and maximized.
 - **After a force-kill, crash or power loss**, the last adjustment may be lost (the periodic record is what survives).
 - No snapping or split-screen logic; Windows snap behaviour is unchanged.
@@ -93,15 +98,16 @@ This guard is a requirement, not a nicety: an earlier version fell back to "the 
 ## Development
 
 ```sh
-npm test              # all six suites
+npm test              # all seven suites
 npm run test:unit     # geometry (any platform)
+npm run test:lifecycle # restore/shutdown regression tests (any platform)
 npm run test:windows  # FFI and window behaviour
 npm run test:e2e      # end-to-end load
 npm run test:dispose  # record-on-exit
 npm run test:safety   # never touches other applications
 ```
 
-`test:manifest` and `test:unit` run anywhere. The other four need real Windows and DSH — the plugin only touches processes whose executable matches `execPath`, so under plain node it correctly refuses every DSH window and those suites skip the assertions that need a real window:
+`test:manifest`, `test:unit` and `test:lifecycle` run anywhere. The lifecycle suite uses an isolated filesystem/Win32 simulation and a fake clock; its VM module flag may emit an experimental warning. The other four need real Windows and DSH — the plugin only touches processes whose executable matches `execPath`, so under plain node it correctly refuses every DSH window and those suites skip the assertions that need a real window:
 
 ```powershell
 $env:ELECTRON_RUN_AS_NODE=1
