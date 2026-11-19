@@ -31,6 +31,7 @@ async function harness(initial = saved) {
     writeOptions: [],
     logs: [],
     stopped: false,
+    interval: null,
     poll(ms = 2000) { time += ms; if (!h.stopped) tick(); },
     dispose() { dispose(); },
     temporaryExists() { return temporary !== undefined; },
@@ -45,7 +46,7 @@ async function harness(initial = saved) {
   const context = vm.createContext({
     process: { platform: "win32", execPath: "host.exe", pid: 123, env: {}, argv: [] },
     Date: class extends Date { static now() { return time; } },
-    setInterval(fn) { tick = fn; return 1; },
+    setInterval(fn, ms) { tick = fn; h.interval = ms; return 1; },
     clearInterval() { h.stopped = true; },
   });
   const dependencies = {
@@ -246,14 +247,24 @@ await test("normal exit captures a final adjustment even when the window is hidd
   assert.deepEqual(stateOf(h.disk), h.current);
 });
 
-await test("periodic state survives abrupt termination without dispose", async () => {
+await test("Windows restart preserves a recent resize even without dispose and despite a startup reset", async () => {
   const first = await harness();
   settle(first);
-  first.current = { x: 150, y: 90, width: 1000, height: 800, maximized: false };
-  first.poll();
+  const resized = { x: 150, y: 90, width: 1000, height: 800, maximized: false };
+  first.current = { ...resized };
+  let untilShutdown = 800;
+  while (untilShutdown >= first.interval) {
+    first.poll(first.interval);
+    untilShutdown -= first.interval;
+  }
+  assert.deepEqual(stateOf(first.disk), resized);
   const second = await harness(first.disk);
+  second.poll();
+  second.current = { ...defaults };
   settle(second);
-  assert.deepEqual(second.current, first.current);
+  assert.deepEqual(second.current, resized);
+  assert.deepEqual(stateOf(second.disk), resized);
+  assert.equal(second.logs.some(message => message.includes("已恢复")), true);
 });
 
 await test("a minimized maximized window retains its maximized restore state", async () => {

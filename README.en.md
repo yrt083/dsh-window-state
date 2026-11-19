@@ -36,10 +36,10 @@ dsh plugin --profile desktop add .
 Nothing to configure.
 
 - **First run**: keeps the current window and starts recording.
-- **After that**: size, position and maximized state are recorded whenever they change (checked every 2 seconds).
+- **After that**: size, position and maximized state are recorded whenever they change (checked every half second).
 - **Next launch**: the last geometry is restored and verified across polls. Failed attempts and startup resets are retried for up to 10 seconds; recording starts only after the restored state stays stable for 4 seconds.
 
-After startup verification, the final geometry is also written when DSH exits normally, so "adjust and quit" is captured accurately. You do not need to close DSH manually before shutting down Windows: periodic saves survive even when the final cleanup cannot run. An adjustment made within the last 2 seconds can still be lost.
+After startup verification, DSH saves the final geometry when it exits normally. If Windows shuts down or restarts without running plugin cleanup, the most recent periodic save is used. Adjustments in the last half second can still be lost.
 
 State updates are flushed to a temporary file before replacing the previous record. A failed restore or an interrupted temporary-file write does not overwrite the last complete record with startup defaults. If restoration cannot be verified within 10 seconds, the plugin logs a warning and stops recording that window to preserve the previous state. A replacement main window is restored from the latest successfully saved state.
 
@@ -73,7 +73,7 @@ At the top of `lib/index.js`:
 
 | Constant | Default | Meaning |
 |---|---|---|
-| `POLL_MS` | `2000` | Check interval in milliseconds |
+| `POLL_MS` | `500` | Check interval in milliseconds |
 | `WAIT_MS` | `90000` | How long to wait for the main window |
 | `RESTORE_SETTLE_MS` | `4000` | How long the restored state must remain stable before recording |
 | `RESTORE_WAIT_MS` | `10000` | Maximum restoration retry time per window |
